@@ -561,6 +561,7 @@ def make_rainbow_chart(
         },
     )
     print(f"    💾 Interactive chart → {outpath.resolve()}")
+    return fig   # returned so callers (e.g. Streamlit) can display without saving
 
 
 # ─────────────────────────────────────────────────────────────────────────────
