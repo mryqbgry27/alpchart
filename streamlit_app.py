@@ -1,25 +1,12 @@
 """
-streamlit_app.py — Stock Analysis Suite
-========================================
-Three tools in one app:
-  🌈  Rainbow Regression Chart
-  📊  Relative Z-Score Spread
-  📈  Relative P/E Ratio
-
-Run locally:   streamlit run streamlit_app.py
-Deploy:        push to GitHub → connect at share.streamlit.io
+Stock Analysis Suite — Streamlit App
+=====================================
+🌈 Rainbow Chart  |  📊 Z-Score Spread  |  📈 P/E Ratio
 """
-
-import warnings
-import os
-import sys
-import tempfile
-import traceback
+import warnings, os, sys, tempfile, traceback, time
 from datetime import date
+from itertools import product
 from pathlib import Path
-
-# Ensure the repo directory is importable on Streamlit Cloud
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import pandas as pd
@@ -28,55 +15,83 @@ import streamlit.components.v1 as components
 
 warnings.filterwarnings("ignore")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PAGE CONFIG  (must be the very first Streamlit call)
+# Ensure the repo directory is on the path so the three scripts are importable
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Stock Analysis Suite",
-    page_icon="📊",
-    layout="wide",
+    page_title="AlpCharts — Stock Analysis",
+    page_icon="📊", layout="wide",
     initial_sidebar_state="expanded",
-    menu_items={"About": "Stock Analysis Suite — Rainbow Charts · Z-Score · P/E Ratio"},
+    menu_items={"About": "AlpCharts — Open-source stock analysis. No financial advice."},
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STYLING
+# CONSTANTS
+# ─────────────────────────────────────────────────────────────────────────────
+CURRENCIES   = ["Native", "USD", "EUR", "CHF", "GBP", "JPY"]
+PERIODS      = ["5Y", "10Y", "15Y", "20Y", "30Y", "50Y", "Custom"]
+MAX_RAINBOW  = 6    # max individual tickers on rainbow page
+MAX_PAIRS    = 12   # hard cap on matrix combinations (z-score & PE)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CSS  — compact, dark, GitHub-style
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  /* dark background matching the chart theme */
-  .stApp            { background-color: #0d1117; color: #e6edf3; }
-  section[data-testid="stSidebar"] { background-color: #161b22; }
-
-  /* metric cards */
-  div[data-testid="metric-container"] {
-      background: #161b22; border: 1px solid #30363d;
-      border-radius: 8px; padding: 12px 16px;
-  }
-
-  /* form border */
-  div[data-testid="stForm"] {
-      border: 1px solid #30363d; border-radius: 10px; padding: 18px;
-  }
-
-  /* expander */
-  details { border: 1px solid #30363d !important; border-radius: 8px; }
-
-  /* download button */
-  div[data-testid="stDownloadButton"] button {
-      background: #161b22; border: 1px solid #30363d; color: #79c0ff;
-  }
-
-  h1, h2, h3, h4 { color: #e6edf3; }
-  .caption-text { color: #8b949e; font-size: 0.85rem; }
+  .stApp                          { background:#0d1117; color:#e6edf3; }
+  section[data-testid="stSidebar"]{ background:#161b22; }
+  div[data-testid="stForm"]       { border:1px solid #30363d; border-radius:10px; padding:14px 16px 10px; }
+  div[data-testid="metric-container"]{ background:#161b22; border:1px solid #30363d; border-radius:8px; padding:8px 12px; }
+  /* tighten default page top-padding */
+  .block-container { padding-top:0.6rem !important; }
+  /* smaller metric numbers */
+  div[data-testid="metric-container"] [data-testid="stMetricValue"]{ font-size:0.95rem !important; }
+  div[data-testid="metric-container"] [data-testid="stMetricLabel"]{ font-size:0.7rem !important; }
+  h1,h2,h3,h4 { color:#e6edf3; margin-bottom:2px !important; }
+  p  { margin-top:2px !important; }
+  details { border:1px solid #30363d !important; border-radius:8px; }
+  div[data-testid="stDownloadButton"] button { background:#161b22; border:1px solid #30363d; color:#79c0ff; }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MODULE LOADING  (cached so yfinance etc. are only imported once)
+# SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
-@st.cache_resource(show_spinner="Loading modules …")
+with st.sidebar:
+    st.markdown("## 📊 AlpCharts")
+    st.caption("Open-source stock analysis suite")
+    st.divider()
+
+    page = st.radio("Tool", ["🌈 Rainbow", "📊 Z-Score Spread", "📈 P/E Ratio"],
+                    label_visibility="collapsed")
+    st.divider()
+
+    st.markdown("""
+**Ticker format**
+Symbols must match [Yahoo Finance](https://finance.yahoo.com) format:
+`AAPL` · `NESN.SW` · `BTC-USD` · `^GSPC`
+
+**Data source:** Yahoo Finance via `yfinance`
+""")
+    st.divider()
+
+    st.markdown("""
+<small style="color:#8b949e">
+⚠️ <b>Disclaimer</b><br>
+AlpCharts is open-source software provided "as-is" for
+informational purposes only. Nothing here constitutes
+financial advice. The authors accept no liability for
+investment decisions made using this tool.
+</small>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MODULE LOADING  (once per process)
+# ─────────────────────────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner="Loading analysis modules …")
 def _load_modules():
     import rainbow_regression as rr
     import zscore_spread      as zs
@@ -85,60 +100,72 @@ def _load_modules():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SHARED HELPERS
+# SHARED UTILITIES
 # ─────────────────────────────────────────────────────────────────────────────
+def _hdr(title: str, sub: str = "") -> None:
+    """Compact page header."""
+    st.markdown(f"<h3 style='margin:0 0 1px 0'>{title}</h3>", unsafe_allow_html=True)
+    if sub:
+        st.markdown(f"<p style='color:#8b949e;font-size:0.82rem;margin:0 0 8px 0'>{sub}</p>",
+                    unsafe_allow_html=True)
+
+
+def _start_from_preset(preset: str) -> date:
+    if preset == "Custom":
+        return date(2012, 1, 1)
+    years = int(preset[:-1])
+    today = date.today()
+    try:
+        return today.replace(year=today.year - years)
+    except ValueError:
+        return today.replace(year=today.year - years, day=28)
+
+
+def _parse_tickers(raw: str) -> list[str]:
+    return [t.strip().upper() for t in raw.split(",") if t.strip()]
+
+
 def _show_chart(html: str, height: int = 730) -> None:
-    """Embed Plotly HTML inside a Streamlit iframe."""
     components.html(html, height=height, scrolling=False)
 
 
-def _download_btn(html: str, filename: str) -> None:
-    st.download_button(
-        label="💾 Download interactive HTML",
-        data=html.encode(),
-        file_name=filename,
-        mime="text/html",
-        use_container_width=True,
-    )
+def _dl_btn(html: str, filename: str) -> None:
+    st.download_button("💾 Download HTML", data=html.encode(),
+                       file_name=filename, mime="text/html",
+                       use_container_width=True)
 
 
-def _chart_html(fig, inject_crosshair_fn=None) -> str:
-    """Serialise a Plotly figure to a self-contained HTML string."""
-    html = fig.to_html(
-        include_plotlyjs="cdn",
-        config={"scrollZoom": True, "displayModeBar": True,
-                "toImageButtonOptions": {"format": "png", "scale": 2}},
-    )
-    if inject_crosshair_fn:
-        html = inject_crosshair_fn(html)
-    return html
+def _chart_html(fig, inject_fn=None) -> str:
+    html = fig.to_html(include_plotlyjs="cdn", config={
+        "scrollZoom": True, "displayModeBar": True,
+        "toImageButtonOptions": {"format": "png", "scale": 2},
+    })
+    return inject_fn(html) if inject_fn else html
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ── DATA CACHE  (1-hour TTL avoids redundant yfinance calls)
+# DATA CACHING
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_prices(ticker: str, start: str, end: str, module_name: str):
+def _fetch_prices(ticker: str, start: str, end: str, which: str) -> "tuple | None":
+    """Return raw price data from the appropriate script."""
     rr, zs, pe = _load_modules()
-    mod = {"rainbow": rr, "zscore": zs, "pe": pe}[module_name]
-    fn  = getattr(mod, "fetch_price_data", None) or getattr(mod, "fetch_prices")
-    return fn(ticker, start, end)
+    if which == "rainbow":
+        return rr.fetch_price_data(ticker, start, end)   # returns (dates, prices)
+    fn = getattr(zs, "fetch_prices", None) or getattr(pe, "fetch_prices")
+    s  = fn(ticker, start, end)
+    return (None, s) if s is None else s   # returns pd.Series directly
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_chf_raw(currency: str, start: str, end: str) -> "pd.Series | None":
-    """
-    Fetch raw <currency>/CHF exchange rates as a date-indexed Series.
-    Keyed only on (currency, start, end) — no DatetimeIndex serialisation.
-    The caller is responsible for aligning to the price dates.
-    """
-    import yfinance as yf
-    if currency == "CHF":
+def _fetch_fx_raw(from_ccy: str, to_ccy: str, start: str, end: str) -> "pd.Series | None":
+    """Fetch raw FX rates as a date-indexed Series; returns None if same currency."""
+    if from_ccy == to_ccy:
         return None
-    fx_ticker = f"{currency}CHF=X"
+    import yfinance as yf
+    fx_ticker = f"{from_ccy}{to_ccy}=X"
     try:
-        fx = yf.download(fx_ticker, start=start, end=end,
-                         progress=False, auto_adjust=True)
+        fx = yf.download(fx_ticker, start=start, end=end, progress=False, auto_adjust=True)
         if fx is None or fx.empty:
             return None
         if hasattr(fx.columns, "levels"):
@@ -149,377 +176,361 @@ def _fetch_chf_raw(currency: str, start: str, end: str) -> "pd.Series | None":
         return None
 
 
-def _align_chf_rates(raw_rates: "pd.Series", price_dates: pd.DatetimeIndex) -> np.ndarray:
-    """Forward-fill (then back-fill) raw rates onto the price date grid."""
-    return (raw_rates
-            .reindex(raw_rates.index.union(price_dates))
-            .ffill()
-            .reindex(price_dates)
-            .bfill()
-            .fillna(1.0)
-            .values)
-
-
 @st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_eps(ticker: str, start: str, end: str):
+def _fetch_eps(ticker: str, start: str, end: str) -> "pd.Series | None":
     _, _, pe = _load_modules()
     return pe.get_quarterly_eps(ticker)
 
 
+def _align_rates(raw: pd.Series, price_dates: pd.DatetimeIndex) -> np.ndarray:
+    return (raw.reindex(raw.index.union(price_dates))
+               .ffill().reindex(price_dates).bfill().fillna(1.0).values)
+
+
+def _convert(prices: np.ndarray, dates: np.ndarray,
+             from_ccy: str, to_ccy: str,
+             start: str, end: str) -> tuple[np.ndarray, str]:
+    """Convert a price array from from_ccy to to_ccy; returns (prices, actual_ccy)."""
+    if to_ccy == "Native" or to_ccy == from_ccy:
+        return prices, from_ccy
+    raw = _fetch_fx_raw(from_ccy, to_ccy, start, end)
+    if raw is None:
+        st.warning(f"Could not fetch {from_ccy}→{to_ccy} rates; using native currency.")
+        return prices, from_ccy
+    pd_dates = pd.DatetimeIndex(pd.to_datetime(dates.astype("datetime64[D]")))
+    return prices * _align_rates(raw, pd_dates), to_ccy
+
+
+def _native_ccy(ticker: str, module) -> str:
+    try:
+        return module.get_native_currency(ticker)
+    except Exception:
+        return "USD"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# ══ PAGE 1 — RAINBOW REGRESSION CHART ════════════════════════════════════════
+# DATE PRESET WIDGET
+# ─────────────────────────────────────────────────────────────────────────────
+def _date_widgets(key: str) -> tuple[date, date]:
+    """Render period preset + optional custom start, return (start, end)."""
+    ca, cb = st.columns([3, 1])
+    with ca:
+        preset = st.radio("Period", PERIODS, index=1, horizontal=True, key=f"preset_{key}")
+    with cb:
+        end = st.date_input("End", value=date.today(), min_value=date(1970, 1, 1), key=f"end_{key}")
+    if preset == "Custom":
+        start = st.date_input("Start date", value=date(2012, 1, 1),
+                              min_value=date(1970, 1, 1), key=f"start_{key}")
+    else:
+        start = _start_from_preset(preset)
+        st.caption(f"📅 Start: **{start}**")
+    return start, end
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ══ PAGE 1 — RAINBOW CHART ═══════════════════════════════════════════════════
 # ─────────────────────────────────────────────────────────────────────────────
 def page_rainbow():
-    st.header("🌈 Rainbow Regression Chart")
-    st.caption("Power-law regression bands reveal long-term structural valuation zones")
+    rr, _, _ = _load_modules()
+    _hdr("🌈 Rainbow Regression Chart",
+         "Power-law regression bands — structural valuation zones per ticker")
 
     with st.form("rainbow_form"):
-        c1, c2, c3 = st.columns([3, 1.2, 1.2])
+        c1, c2 = st.columns([3, 1])
         with c1:
             tickers_raw = st.text_input(
-                "Tickers — comma-separated",
-                "AAPL, MSFT, GOOGL, AMZN",
-                help="Any Yahoo Finance symbol: AAPL, BTC-USD, NESN.SW …",
-            )
+                "Tickers (comma-separated)", "AAPL, MSFT, GOOGL, AMZN",
+                help="Yahoo Finance format: AAPL · BTC-USD · NESN.SW")
+            currency = st.selectbox("Display currency", CURRENCIES, index=3,
+                                    help="Prices converted before regression is fitted")
         with c2:
-            start = st.date_input("Start date", value=date(2012, 1, 1))
-            convert_chf = st.checkbox("Convert to CHF", value=True)
-        with c3:
-            end = st.date_input("End date", value=date.today())
+            start, end = _date_widgets("rr")
 
-        with st.expander("⚙️ Advanced settings"):
+        with st.expander("⚙️ Chart settings"):
             a1, a2, a3, a4 = st.columns(4)
             forecast_months = a1.slider("Forecast months", 0, 36, 6)
-            y_floor_buffer  = a2.slider("Y-floor buffer", 0.05, 1.0, 0.20, 0.05,
-                                        help="Chart floor = historical_low × buffer")
-            band_half_width = a3.slider("Band half-width (σ)", 0.1, 1.0, 0.5, 0.05)
+            y_floor_buf     = a2.slider("Y-floor buffer",  0.05, 1.0, 0.20, 0.05)
+            band_hw         = a3.slider("Band half-width σ", 0.1, 1.0, 0.5, 0.05)
             with a4:
-                ma_200 = st.checkbox("200-day SMA overlay", True)
-                ma_600 = st.checkbox("600-day SMA overlay", True)
+                ma_200 = st.checkbox("200-day SMA", True)
+                ma_600 = st.checkbox("600-day SMA", True)
 
-        run = st.form_submit_button("🚀 Generate Charts", type="primary",
-                                    use_container_width=True)
+        run = st.form_submit_button("🚀 Generate", type="primary", use_container_width=True)
 
     if not run:
         return
 
-    rr, _, _ = _load_modules()
-    tickers = [t.strip().upper() for t in tickers_raw.split(",") if t.strip()]
+    tickers = _parse_tickers(tickers_raw)[:MAX_RAINBOW]
     if not tickers:
-        st.error("Enter at least one ticker symbol.")
+        st.error("Enter at least one ticker.")
         return
+    if len(_parse_tickers(tickers_raw)) > MAX_RAINBOW:
+        st.warning(f"Showing first {MAX_RAINBOW} tickers only.")
 
-    # Apply config
-    rr.FORECAST_MONTHS   = forecast_months
-    rr.Y_FLOOR_BUFFER    = y_floor_buffer
-    rr.BAND_HALF_WIDTH   = band_half_width
-    rr.CONVERT_TO_CHF    = convert_chf
-    rr.MOVING_AVERAGES   = ([(200, "SMA", "#00bfff")] if ma_200 else []) + \
-                           ([(600, "SMA", "#ff69b4")] if ma_600 else [])
+    rr.FORECAST_MONTHS = forecast_months
+    rr.Y_FLOOR_BUFFER  = y_floor_buf
+    rr.BAND_HALF_WIDTH = band_hw
+    rr.MOVING_AVERAGES = ([(200, "SMA", "#00bfff")] if ma_200 else []) + \
+                         ([(600, "SMA", "#ff69b4")] if ma_600 else [])
 
     for ticker in tickers:
         st.divider()
-        st.subheader(f"📈 {ticker}")
-
+        st.markdown(f"**{ticker}**")
         with st.spinner(f"Fetching {ticker} …"):
             try:
-                # ── fetch prices ──────────────────────────────────────────
                 raw = _fetch_prices(ticker, str(start), str(end), "rainbow")
                 if raw is None:
-                    st.error(f"{ticker}: no price data returned — check the symbol.")
+                    st.error(f"{ticker}: no data — check the symbol.")
                     continue
                 dates, prices = raw
+                native = _native_ccy(ticker, rr)
+                prices, price_ccy = _convert(prices, dates, native, currency, str(start), str(end))
 
-                # ── optional CHF conversion ───────────────────────────────
-                price_currency = rr.get_native_currency(ticker)
-                if convert_chf and price_currency != "CHF":
-                    raw_rates = _fetch_chf_raw(price_currency, str(start), str(end))
-                    if raw_rates is not None:
-                        price_dates = pd.DatetimeIndex(dates.astype("datetime64[D]"))
-                        prices      = prices * _align_chf_rates(raw_rates, price_dates)
-                        price_currency = "CHF"
-                    else:
-                        st.warning(f"{ticker}: CHF conversion unavailable — showing native currency.")
-
-                # ── regression & chart ────────────────────────────────────
                 a, b, sigma, _ = rr.fit_log_regression(prices)
-
                 with tempfile.TemporaryDirectory() as tmp:
-                    fig = rr.make_rainbow_chart(
-                        ticker, dates, prices, a, b, sigma,
-                        Path(tmp), price_currency,
-                    )
+                    fig = rr.make_rainbow_chart(ticker, dates, prices, a, b, sigma,
+                                                Path(tmp), price_ccy)
 
-                # ── summary metrics ───────────────────────────────────────
-                sym = "CHF " if price_currency == "CHF" else "$"
+                sym = f"{price_ccy} " if price_ccy not in ("USD",) else "$"
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Latest price",    f"{sym}{prices[-1]:,.2f}")
                 m2.metric("Growth exponent", f"{a:.4f}")
-                m3.metric("Regression σ",    f"{sigma:.4f}")
+                m3.metric("Residual σ",      f"{sigma:.4f}")
                 m4.metric("Data points",     f"{len(prices):,}")
 
-                # ── chart ─────────────────────────────────────────────────
-                html = _chart_html(fig)
-                _show_chart(html, height=740)
-                _download_btn(html, f"{ticker}_rainbow.html")
+                _show_chart(_chart_html(fig), height=740)
+                _dl_btn(_chart_html(fig), f"{ticker}_rainbow.html")
+                time.sleep(0.3)   # gentle rate-limit between tickers
 
             except Exception:
-                st.error(f"{ticker}: unexpected error.")
+                st.error(f"{ticker}: error"); st.code(traceback.format_exc())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ══ PAGE 2 — Z-SCORE SPREAD ══════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
+def page_zscore():
+    _, zs, _ = _load_modules()
+    _hdr("📊 Relative Z-Score Spread",
+         "Power-law Z-score of A minus B — positive = A relatively extended vs B")
+
+    with st.form("zscore_form"):
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            YF_HELP = "Yahoo Finance format e.g. AAPL, MSFT, BTC-USD  (comma-separate for matrix mode)"
+            ra = st.text_input("Ticker A — numerator(s)",   "AAPL", help=YF_HELP)
+            rb = st.text_input("Ticker B — denominator(s)", "MSFT", help=YF_HELP)
+            currency = st.selectbox("Display currency", CURRENCIES, index=3,
+                                    help="Both prices converted before Z-score is computed")
+        with c2:
+            start, end = _date_widgets("zs")
+
+        with st.expander("⚙️ Y-axis limits  (0 = automatic)"):
+            y1, y2 = st.columns(2)
+            ym = y1.number_input("Y min", 0.0, step=0.5, format="%.1f")
+            yx = y2.number_input("Y max", 0.0, step=0.5, format="%.1f")
+            y_min = None if ym == 0.0 else float(ym)
+            y_max = None if yx == 0.0 else float(yx)
+
+        run = st.form_submit_button("🚀 Run Analysis", type="primary", use_container_width=True)
+
+    if not run:
+        return
+
+    tas = _parse_tickers(ra)
+    tbs = _parse_tickers(rb)
+    pairs = [(a, b) for a, b in product(tas, tbs) if a != b]
+    if not pairs:
+        st.error("No valid pairs — ensure Ticker A ≠ Ticker B.")
+        return
+    if len(pairs) > MAX_PAIRS:
+        st.warning(f"Capped at {MAX_PAIRS} pairs (from {len(pairs)} combinations).")
+        pairs = pairs[:MAX_PAIRS]
+
+    zs.Y_AXIS_MIN = y_min
+    zs.Y_AXIS_MAX = y_max
+
+    for ticker_a, ticker_b in pairs:
+        st.divider()
+        st.markdown(f"**{ticker_a} vs {ticker_b}**")
+        with st.spinner(f"Fetching {ticker_a} & {ticker_b} …"):
+            try:
+                # Fetch raw prices (Series)
+                pa_raw = zs.fetch_prices(ticker_a, str(start), str(end))
+                pb_raw = zs.fetch_prices(ticker_b, str(start), str(end))
+                if pa_raw is None or pb_raw is None:
+                    st.error(f"Price data unavailable for one or both tickers.")
+                    continue
+
+                # Currency conversion using dates from the Series index
+                def _conv_series(s: pd.Series, ticker: str) -> pd.Series:
+                    native = _native_ccy(ticker, zs)
+                    if currency == "Native" or currency == native:
+                        return s
+                    raw_fx = _fetch_fx_raw(native, currency, str(start), str(end))
+                    if raw_fx is None:
+                        st.warning(f"{ticker}: {native}→{currency} unavailable.")
+                        return s
+                    aligned = _align_rates(raw_fx, pd.DatetimeIndex(s.index))
+                    return s * aligned
+
+                pa = _conv_series(pa_raw, ticker_a)
+                pb = _conv_series(pb_raw, ticker_b)
+
+                z_a, a_a, b_a, sig_a = zs.compute_zscore(pa, ticker_a)
+                z_b, a_b, b_b, sig_b = zs.compute_zscore(pb, ticker_b)
+                df = zs.compute_spread(z_a, z_b)
+
+                spread_now = df["spread"].iloc[-1]
+                cols = st.columns(1 + len(zs.SMA_WINDOWS))
+                cols[0].metric("Z-Spread now", f"{spread_now:+.3f}σ")
+                for i, (w, lbl, _) in enumerate(zs.SMA_WINDOWS, 1):
+                    v = df[f"sma_{w}"].dropna().iloc[-1] if df[f"sma_{w}"].notna().any() else float("nan")
+                    cols[i].metric(lbl.split("(")[0].strip(), f"{v:+.3f}σ")
+
+                fig  = zs.build_chart(df, ticker_a, ticker_b,
+                                      (a_a, b_a, sig_a), (a_b, b_b, sig_b))
+                html = _chart_html(fig, inject_fn=zs._inject_crosshair_js)
+                _show_chart(html, height=760)
+                _dl_btn(html, f"{ticker_a}_vs_{ticker_b}_zscore.html")
+                time.sleep(0.3)
+
+            except Exception:
+                st.error(f"{ticker_a} vs {ticker_b}: error")
                 st.code(traceback.format_exc())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ══ PAGE 2 — RELATIVE Z-SCORE SPREAD ═════════════════════════════════════════
-# ─────────────────────────────────────────────────────────────────────────────
-def page_zscore():
-    st.header("📊 Relative Z-Score Spread")
-    st.caption(
-        "Each ticker's price is normalised via its own power-law regression. "
-        "The spread = Z_A − Z_B reveals relative over/undervaluation."
-    )
-
-    with st.form("zscore_form"):
-        c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.2, 1.2])
-        ticker_a    = c1.text_input("Ticker A  (numerator)",   "AAPL").strip().upper()
-        ticker_b    = c2.text_input("Ticker B  (denominator)", "MSFT").strip().upper()
-        start       = c3.date_input("Start date", value=date(2012, 1, 1))
-        end         = c4.date_input("End date",   value=date.today())
-        convert_chf = st.checkbox("Normalise both prices to CHF first", value=True,
-                                  help="Removes USD/native-currency inflation from each series")
-
-        with st.expander("⚙️ Y-axis limits  (leave 0 for automatic)"):
-            y1, y2 = st.columns(2)
-            y_min_raw = y1.number_input("Y min", value=0.0, step=0.5, format="%.1f")
-            y_max_raw = y2.number_input("Y max", value=0.0, step=0.5, format="%.1f")
-            y_min = None if y_min_raw == 0.0 else y_min_raw
-            y_max = None if y_max_raw == 0.0 else y_max_raw
-
-        run = st.form_submit_button("🚀 Run Analysis", type="primary",
-                                    use_container_width=True)
-
-    if not run:
-        return
-
-    if ticker_a == ticker_b:
-        st.error("Ticker A and B must be different.")
-        return
-
-    _, zs, _ = _load_modules()
-    zs.CONVERT_TO_CHF = convert_chf
-    zs.Y_AXIS_MIN     = y_min
-    zs.Y_AXIS_MAX     = y_max
-
-    with st.spinner(f"Fetching {ticker_a} and {ticker_b} …"):
-        try:
-            prices_a = zs.load_ticker_prices(ticker_a, str(start), str(end))
-            prices_b = zs.load_ticker_prices(ticker_b, str(start), str(end))
-            if prices_a is None or prices_b is None:
-                st.error("Could not fetch prices for one or both tickers.")
-                return
-
-        except Exception:
-            st.error("Price fetch failed."); st.code(traceback.format_exc()); return
-
-    with st.spinner("Computing Z-scores and spread …"):
-        try:
-            z_a, a_a, b_a, sig_a = zs.compute_zscore(prices_a, ticker_a)
-            z_b, a_b, b_b, sig_b = zs.compute_zscore(prices_b, ticker_b)
-            df = zs.compute_spread(z_a, z_b)
-
-        except Exception:
-            st.error("Computation failed."); st.code(traceback.format_exc()); return
-
-    # ── summary metrics ───────────────────────────────────────────────────────
-    spread_now = df["spread"].iloc[-1]
-    cols = st.columns(1 + len(zs.SMA_WINDOWS))
-    cols[0].metric("Current Z-Spread", f"{spread_now:+.3f}σ",
-                   help="Positive → A extended relative to B")
-    for i, (w, lbl, _) in enumerate(zs.SMA_WINDOWS, start=1):
-        v = df[f"sma_{w}"].dropna().iloc[-1] if df[f"sma_{w}"].notna().any() else float("nan")
-        cols[i].metric(lbl.split("(")[0].strip(), f"{v:+.3f}σ")
-
-    # ── chart ─────────────────────────────────────────────────────────────────
-    with st.spinner("Building chart …"):
-        try:
-            fig  = zs.build_chart(df, ticker_a, ticker_b,
-                                  (a_a, b_a, sig_a), (a_b, b_b, sig_b))
-            html = _chart_html(fig, inject_crosshair_fn=zs._inject_crosshair_js)
-            _show_chart(html, height=760)
-            _download_btn(html, f"{ticker_a}_vs_{ticker_b}_zscore.html")
-
-        except Exception:
-            st.error("Chart build failed."); st.code(traceback.format_exc())
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ══ PAGE 3 — RELATIVE P/E RATIO ══════════════════════════════════════════════
+# ══ PAGE 3 — P/E RATIO ═══════════════════════════════════════════════════════
 # ─────────────────────────────────────────────────────────────────────────────
 def page_pe():
-    st.header("📈 Relative P/E Ratio Comparison")
-    st.caption(
-        "Trailing TTM P/E for each stock, plus the ratio PE_A / PE_B over time. "
-        "P/E is currency-neutral — CHF conversion has no effect on the values."
+    _, _, pe = _load_modules()
+    _hdr("📈 Relative P/E Ratio",
+         "Trailing TTM P/E per stock + ratio over time  — P/E is currency-neutral")
+
+    st.info(
+        "📌 **EPS note:** Yahoo Finance provides ~4–5 years of quarterly EPS. "
+        "Where only annual data is available the quarterly value is estimated as "
+        "annual EPS ÷ 4, producing a **synthetic TTM**. This may differ slightly "
+        "from official trailing P/E numbers.",
+        icon=None,
     )
 
     with st.form("pe_form"):
-        c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.2, 1.2])
-        ticker_a    = c1.text_input("Ticker A  (numerator)",   "AAPL").strip().upper()
-        ticker_b    = c2.text_input("Ticker B  (denominator)", "MSFT").strip().upper()
-        start       = c3.date_input("Start date", value=date(2012, 1, 1))
-        end         = c4.date_input("End date",   value=date.today())
-        chf_label   = st.checkbox("Show [CHF] label in chart title", value=True,
-                                  help="P/E itself is unaffected — this is cosmetic only")
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            YF_HELP = "Yahoo Finance format e.g. AAPL, MSFT  (comma-separate for matrix mode)"
+            ra = st.text_input("Ticker A — numerator(s)",   "AAPL", help=YF_HELP)
+            rb = st.text_input("Ticker B — denominator(s)", "MSFT", help=YF_HELP)
+            chf_label = st.checkbox("Show [CHF] label", True,
+                                    help="P/E is currency-neutral; this is a cosmetic label only")
+        with c2:
+            start, end = _date_widgets("pe")
 
-        with st.expander("⚙️ Advanced settings"):
+        with st.expander("⚙️ Axis limits  (0 = auto)  &  EPS data"):
             r1, r2, r3, r4 = st.columns(4)
-            pe_ymin_raw    = r1.number_input("P/E y-min  (0=auto)",    0.0, step=1.0,  format="%.0f")
-            pe_ymax_raw    = r2.number_input("P/E y-max  (0=auto)",    0.0, step=5.0,  format="%.0f")
-            ratio_ymin_raw = r3.number_input("Ratio y-min (0=auto)",   0.0, step=0.1,  format="%.2f")
-            ratio_ymax_raw = r4.number_input("Ratio y-max (0=auto)",   0.0, step=0.1,  format="%.2f")
-
-            st.markdown("**Historical EPS CSV** *(optional — extends history beyond ~4 years)*")
+            pe_ymn = r1.number_input("P/E y-min",    0.0, step=1.0,  format="%.0f")
+            pe_ymx = r2.number_input("P/E y-max",    0.0, step=5.0,  format="%.0f")
+            r_ymn  = r3.number_input("Ratio y-min",  0.0, step=0.1,  format="%.2f")
+            r_ymx  = r4.number_input("Ratio y-max",  0.0, step=0.1,  format="%.2f")
             eps_file = st.file_uploader(
-                "Upload CSV with columns: date (YYYY-MM-DD), eps (quarterly EPS $)",
-                type=["csv"], label_visibility="collapsed",
+                "Historical EPS CSV (optional — date, eps columns — extends history beyond ~4 yrs)",
+                type=["csv"], label_visibility="visible",
             )
-            if eps_file:
-                st.caption(
-                    "💡 Free EPS sources: macrotrends.net · simfin.com · "
-                    "financialmodelingprep.com"
-                )
 
-        run = st.form_submit_button("🚀 Run Analysis", type="primary",
-                                    use_container_width=True)
+        run = st.form_submit_button("🚀 Run Analysis", type="primary", use_container_width=True)
 
     if not run:
         return
 
-    if ticker_a == ticker_b:
-        st.error("Ticker A and B must be different.")
+    tas = _parse_tickers(ra)
+    tbs = _parse_tickers(rb)
+    pairs = [(a, b) for a, b in product(tas, tbs) if a != b]
+    if not pairs:
+        st.error("No valid pairs — ensure Ticker A ≠ Ticker B.")
         return
+    if len(pairs) > MAX_PAIRS:
+        st.warning(f"Capped at {MAX_PAIRS} pairs.")
+        pairs = pairs[:MAX_PAIRS]
 
-    _, _, pe = _load_modules()
-    pe.CONVERT_TO_CHF = chf_label
-    pe.PE_Y_MIN       = None if pe_ymin_raw    == 0.0 else pe_ymin_raw
-    pe.PE_Y_MAX       = None if pe_ymax_raw    == 0.0 else pe_ymax_raw
-    pe.RATIO_Y_MIN    = None if ratio_ymin_raw == 0.0 else ratio_ymin_raw
-    pe.RATIO_Y_MAX    = None if ratio_ymax_raw == 0.0 else ratio_ymax_raw
+    pe.PE_Y_MIN    = None if pe_ymn == 0.0 else float(pe_ymn)
+    pe.PE_Y_MAX    = None if pe_ymx == 0.0 else float(pe_ymx)
+    pe.RATIO_Y_MIN = None if r_ymn  == 0.0 else float(r_ymn)
+    pe.RATIO_Y_MAX = None if r_ymx  == 0.0 else float(r_ymx)
 
-    # ── optional EPS CSV ──────────────────────────────────────────────────────
-    tmp_csv_path = None
-    if eps_file is not None:
-        tmp = tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".csv", delete=False
-        )
-        tmp.write(eps_file.read()); tmp.close()
-        tmp_csv_path = tmp.name
-        pe.EPS_CSV_PATH = tmp_csv_path
+    # optional CSV
+    tmp_csv = None
+    if eps_file:
+        tf = tempfile.NamedTemporaryFile(mode="wb", suffix=".csv", delete=False)
+        tf.write(eps_file.read()); tf.close()
+        tmp_csv = tf.name
+        pe.EPS_CSV_PATH = tmp_csv
     else:
         pe.EPS_CSV_PATH = None
 
     try:
-        with st.spinner(f"Fetching prices for {ticker_a} and {ticker_b} …"):
-            prices_a = _fetch_prices(ticker_a, str(start), str(end), "pe")
-            prices_b = _fetch_prices(ticker_b, str(start), str(end), "pe")
-            if prices_a is None or prices_b is None:
-                st.error("Could not fetch prices for one or both tickers.")
-                return
-            prices_a.name = ticker_a
-            prices_b.name = ticker_b
+        for ticker_a, ticker_b in pairs:
+            st.divider()
+            st.markdown(f"**{ticker_a} vs {ticker_b}**")
+            with st.spinner(f"Fetching {ticker_a} & {ticker_b} …"):
+                try:
+                    pa = pe.fetch_prices(ticker_a, str(start), str(end))
+                    pb = pe.fetch_prices(ticker_b, str(start), str(end))
+                    if pa is None or pb is None:
+                        st.error("Price data unavailable."); continue
+                    pa.name = ticker_a; pb.name = ticker_b
 
-        with st.spinner("Fetching earnings / EPS data …"):
-            eps_a = _fetch_eps(ticker_a, str(start), str(end))
-            eps_b = _fetch_eps(ticker_b, str(start), str(end))
-            if eps_a is None or eps_b is None:
-                st.error(
-                    "EPS data unavailable for one or both tickers.\n\n"
-                    "Upload a historical EPS CSV above to proceed."
-                )
-                return
+                    eps_a = _fetch_eps(ticker_a, str(start), str(end))
+                    eps_b = _fetch_eps(ticker_b, str(start), str(end))
+                    if eps_a is None or eps_b is None:
+                        st.error("EPS data unavailable. Upload a CSV to proceed."); continue
 
-        with st.spinner("Computing TTM P/E and ratio …"):
-            pea = pe.compute_ttm_pe(prices_a, eps_a)
-            peb = pe.compute_ttm_pe(prices_b, eps_b)
+                    pea = pe.compute_ttm_pe(pa, eps_a)
+                    peb = pe.compute_ttm_pe(pb, eps_b)
+                    df  = pe.compute_pe_comparison(pea, peb)
 
-            valid_a = pea.notna().sum()
-            valid_b = peb.notna().sum()
-            if valid_a < 10 or valid_b < 10:
-                st.warning(
-                    f"Very few valid P/E days ({valid_a} for {ticker_a}, "
-                    f"{valid_b} for {ticker_b}). "
-                    "Results may be unreliable — consider uploading an EPS CSV."
-                )
+                    # ── compact metrics ───────────────────────────────────
+                    va, vb = pea.notna().sum(), peb.notna().sum()
+                    r_now  = df["ratio"].iloc[-1]
+                    sma600 = df["sma_600"].dropna().iloc[-1] if df["sma_600"].notna().any() else float("nan")
+                    st.markdown(
+                        f"<div style='display:flex;flex-wrap:wrap;gap:6px;font-size:0.78rem;"
+                        f"background:#161b22;border:1px solid #30363d;border-radius:8px;"
+                        f"padding:8px 12px;margin-bottom:6px'>"
+                        f"<span style='margin-right:12px'><b>{ticker_a} P/E</b>: "
+                        f"{pe._fmt_pe(pea.dropna().iloc[-1])}</span>"
+                        f"<span style='margin-right:12px'><b>{ticker_b} P/E</b>: "
+                        f"{pe._fmt_pe(peb.dropna().iloc[-1])}</span>"
+                        f"<span style='margin-right:12px'><b>Ratio A/B</b>: "
+                        f"{pe._fmt_ratio(r_now)}</span>"
+                        f"<span style='margin-right:12px'><b>600-day SMA</b>: "
+                        f"{pe._fmt_ratio(sma600)}</span>"
+                        f"<span style='color:#8b949e'>PE days: {va} / {vb}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    if va < 400 or vb < 400:
+                        st.caption("ℹ️ Limited EPS history — upload a CSV for full coverage. "
+                                   "Free source: [macrotrends.net](https://www.macrotrends.net)")
 
-            df = pe.compute_pe_comparison(pea, peb)
+                    ccy_lbl = "CHF" if chf_label else "native"
+                    fig  = pe.build_chart(df, ticker_a, ticker_b, ccy_lbl)
+                    html = _chart_html(fig, inject_fn=pe._inject_crosshair_js)
+                    _show_chart(html, height=820)
+                    _dl_btn(html, f"{ticker_a}_vs_{ticker_b}_PE.html")
+                    time.sleep(0.3)
 
-        # ── summary metrics ───────────────────────────────────────────────────
-        ratio_now = df["ratio"].iloc[-1]
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric(f"{ticker_a} P/E",    pe._fmt_pe(pea.dropna().iloc[-1]))
-        m2.metric(f"{ticker_b} P/E",    pe._fmt_pe(peb.dropna().iloc[-1]))
-        m3.metric("Current ratio A/B",  pe._fmt_ratio(ratio_now))
-        m4.metric("PE days (A / B)",    f"{valid_a} / {valid_b}")
-        sma600 = df["sma_600"].dropna().iloc[-1] if df["sma_600"].notna().any() else float("nan")
-        m5.metric("600-day SMA ratio",  pe._fmt_ratio(sma600))
-
-        # ── EPS data quality notice ───────────────────────────────────────────
-        if valid_a < 400 or valid_b < 400:
-            st.info(
-                "📌 **Limited EPS history** — Yahoo Finance typically provides ~4 years "
-                "of quarterly earnings. Upload an EPS CSV for full historical coverage. "
-                "Free source: [macrotrends.net](https://www.macrotrends.net) → "
-                "search '*TICKER* EPS' → download table."
-            )
-
-        # ── chart ─────────────────────────────────────────────────────────────
-        with st.spinner("Building chart …"):
-            ccy_label = "CHF" if chf_label else "native"
-            fig  = pe.build_chart(df, ticker_a, ticker_b, ccy_label)
-            html = _chart_html(fig, inject_crosshair_fn=pe._inject_crosshair_js)
-            _show_chart(html, height=810)
-            _download_btn(html, f"{ticker_a}_vs_{ticker_b}_PE.html")
-
-    except Exception:
-        st.error("Unexpected error — see details below.")
-        st.code(traceback.format_exc())
-
+                except Exception:
+                    st.error(f"{ticker_a} vs {ticker_b}: error")
+                    st.code(traceback.format_exc())
     finally:
-        if tmp_csv_path and os.path.exists(tmp_csv_path):
-            os.unlink(tmp_csv_path)
+        if tmp_csv and os.path.exists(tmp_csv):
+            os.unlink(tmp_csv)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ── SIDEBAR ───────────────────────────────────────────────────────────────────
+# ROUTING
 # ─────────────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## 📊 Stock Analysis Suite")
-    st.caption("Powered by yfinance + Plotly")
-    st.divider()
-
-    page = st.radio(
-        "Select a tool",
-        options=[
-            "🌈 Rainbow Chart",
-            "📊 Z-Score Spread",
-            "📈 P/E Ratio",
-        ],
-        label_visibility="collapsed",
-    )
-
-    st.divider()
-    st.markdown("""
-<div class='caption-text'>
-<b>Data source:</b> Yahoo Finance (yfinance)<br>
-<b>CHF rates:</b> Yahoo Finance forex pairs<br>
-<b>P/E EPS:</b> Quarterly earnings (up to 4–5 yrs)
-</div>
-""", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ── ROUTING ───────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
-if page == "🌈 Rainbow Chart":
+if page == "🌈 Rainbow":
     page_rainbow()
 elif page == "📊 Z-Score Spread":
     page_zscore()
