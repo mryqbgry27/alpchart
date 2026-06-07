@@ -73,7 +73,7 @@ with st.sidebar:
     st.markdown("""
 **Ticker format**
 Symbols must match [Yahoo Finance](https://finance.yahoo.com) format:
-`AAPL` · `NESN.SW` · `BTC-USD` · `^GSPC`
+`AAPL` · `SAP.DE` · `BTC-USD` · `^GSPC`
 
 **Data source:** Yahoo Finance via `yfinance`
 """)
@@ -88,6 +88,12 @@ financial advice. The authors accept no liability for
 investment decisions made using this tool.
 </small>
 """, unsafe_allow_html=True)
+
+    st.divider()
+    st.markdown(
+        "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
+        "if you find Alpchart useful!",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -106,7 +112,7 @@ def _load_modules():
 # ─────────────────────────────────────────────────────────────────────────────
 def _subtitle(text: str) -> None:
     st.markdown(
-        f"<p style='color:#8b949e;font-size:0.82rem;margin:0 0 10px 0'>{text}</p>",
+        f"<p style='color:#8b949e;font-size:0.82rem;margin:1.1rem 0 10px 0'>{text}</p>",
         unsafe_allow_html=True,
     )
 
@@ -264,11 +270,11 @@ def page_rainbow():
             tickers_raw = st.text_input(
                 "Tickers (comma-separated)",
                 "AAPL, MSFT, GOOGL, AMZN",
-                help="Yahoo Finance format: AAPL · BTC-USD · NESN.SW",
+                help="Yahoo Finance format: AAPL · BTC-USD · SAP.DE",
             )
         with c2:
             currency = st.selectbox(
-                "Display currency", CURRENCIES, index=1,
+                "Display currency", CURRENCIES, index=0,
                 help="Prices are converted before the regression is fitted",
             )
 
@@ -348,7 +354,7 @@ def page_zscore():
         "negative = B extended vs A. SMAs of the spread reveal momentum shifts."
     )
 
-    YF_HELP = ("Yahoo Finance format e.g. AAPL · BTC-USD · NESN.SW. "
+    YF_HELP = ("Yahoo Finance format e.g. AAPL · BTC-USD · SAP.DE. "
                "Add multiple tickers with commas for matrix mode (e.g. AAPL, MSFT).")
 
     start, end = _date_row("zs")
@@ -357,11 +363,11 @@ def page_zscore():
         c1, c2 = st.columns([3, 1])
         with c1:
             ra = st.text_input(
-                "Ticker A — numerator(s)  *(comma-separate for matrix)*",
+                "Ticker A — numerator(s)  *(comma-separate for multiple chart combinations)*",
                 "AAPL", help=YF_HELP,
             )
             rb = st.text_input(
-                "Ticker B — denominator(s)  *(comma-separate for matrix)*",
+                "Ticker B — denominator(s)  *(comma-separate for multiple chart combinations)*",
                 "MSFT", help=YF_HELP,
             )
         with c2:
@@ -463,7 +469,7 @@ def page_pe():
         "This may differ slightly from officially published trailing P/E figures.",
     )
 
-    YF_HELP = ("Yahoo Finance format e.g. AAPL · BTC-USD · NESN.SW. "
+    YF_HELP = ("Yahoo Finance format e.g. AAPL · BTC-USD · SAP.DE. "
                "Add multiple tickers with commas for matrix mode (e.g. AAPL, MSFT).")
 
     start, end = _date_row("pe")
@@ -472,18 +478,16 @@ def page_pe():
         c1, c2 = st.columns([3, 1])
         with c1:
             ra = st.text_input(
-                "Ticker A — numerator(s)  *(comma-separate for matrix)*",
+                "Ticker A — numerator(s)  *(comma-separate for multiple chart combinations)*",
                 "AAPL", help=YF_HELP,
             )
             rb = st.text_input(
-                "Ticker B — denominator(s)  *(comma-separate for matrix)*",
+                "Ticker B — denominator(s)  *(comma-separate for multiple chart combinations)*",
                 "MSFT", help=YF_HELP,
             )
         with c2:
-            chf_label = st.checkbox(
-                "Show [CHF] label",
-                True,
-                help="P/E is currency-neutral — this is a cosmetic label only",
+            st.caption(
+                "P/E is currency-neutral — exchange rates do not affect the values."
             )
 
         with st.expander("⚙️ Axis limits  (0 = auto)  &  EPS data"):
@@ -576,7 +580,7 @@ def page_pe():
                     if va < 400 or vb < 400:
                         st.caption("ℹ️ Limited EPS history — upload a CSV for full coverage.")
 
-                    ccy_lbl = "CHF" if chf_label else "native"
+                    ccy_lbl = "native"
                     fig  = pe.build_chart(df, ticker_a, ticker_b, ccy_lbl)
                     html = _chart_html(fig, inject_fn=pe._inject_crosshair_js)
                     _show_chart(html, height=820)
