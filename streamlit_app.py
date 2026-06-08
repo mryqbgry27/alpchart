@@ -91,7 +91,7 @@ investment decisions made using this tool.
 
     st.divider()
     st.markdown(
-        "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
+        "⭐ [Star on GitHub](https://github.com/YOUR_USERNAME/YOUR_REPO) "
         "if you find Alpchart useful!",
     )
 
