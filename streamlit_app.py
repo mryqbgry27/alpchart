@@ -30,22 +30,65 @@ MAX_PAIRS   = 12
 
 st.markdown("""
 <style>
+  /* ── Global font ──────────────────────────────────────────────────── */
+  html, body, [class*="css"], * {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  }
+
+  /* ── Backgrounds ─────────────────────────────────────────────────── */
   .stApp { background:#0d1117; color:#e6edf3; }
+  .block-container { padding-top:3.5rem !important; }
+
+  /* ── Sidebar — uniform small font throughout ─────────────────────── */
   section[data-testid="stSidebar"] { background:#161b22; }
+  section[data-testid="stSidebar"] h2 {
+      font-size:1.05rem !important; font-weight:600; margin-bottom:2px;
+  }
+  section[data-testid="stSidebar"] p,
+  section[data-testid="stSidebar"] li,
+  section[data-testid="stSidebar"] small,
+  section[data-testid="stSidebar"] span,
+  section[data-testid="stSidebar"] a,
+  section[data-testid="stSidebar"] label,
+  section[data-testid="stSidebar"] .stMarkdown,
+  section[data-testid="stSidebar"] [data-testid="stMarkdown"] {
+      font-size:0.79rem !important; line-height:1.4;
+  }
+  section[data-testid="stSidebar"] strong { font-size:0.79rem !important; }
+
+  /* ── Metric cards ────────────────────────────────────────────────── */
   div[data-testid="metric-container"] {
       background:#161b22; border:1px solid #30363d;
       border-radius:8px; padding:8px 12px;
   }
   div[data-testid="metric-container"] [data-testid="stMetricValue"] { font-size:0.95rem !important; }
   div[data-testid="metric-container"] [data-testid="stMetricLabel"] { font-size:0.7rem !important; }
-  .block-container { padding-top:0.5rem !important; }
+
+  /* ── Green primary buttons ───────────────────────────────────────── */
+  button[kind="primary"],
+  div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
+      background-color:#2ea043 !important;
+      border-color:#2ea043 !important;
+      color:#ffffff !important;
+  }
+  div[data-testid="stButton"] > button[data-testid="baseButton-primary"]:hover {
+      background-color:#3fb950 !important;
+      border-color:#3fb950 !important;
+  }
+  div[data-testid="stButton"] > button[data-testid="baseButton-primary"]:active {
+      background-color:#238636 !important;
+      border-color:#238636 !important;
+  }
+
+  /* ── Green radio / checkbox / select accent ──────────────────────── */
+  input[type="radio"], input[type="checkbox"] {
+      accent-color:#2ea043 !important;
+  }
+
+  /* ── Misc ────────────────────────────────────────────────────────── */
   details { border:1px solid #30363d !important; border-radius:8px; }
   div[data-testid="stDownloadButton"] button {
       background:#161b22; border:1px solid #30363d; color:#79c0ff;
-  }
-  /* tighten container borders */
-  div[data-testid="stVerticalBlock"] > div[style*="border"] {
-      border:1px solid #30363d !important; border-radius:10px;
   }
 </style>
 """, unsafe_allow_html=True)
@@ -91,7 +134,7 @@ investment decisions made using this tool.
 
     st.divider()
     st.markdown(
-        "⭐ [Star on GitHub](https://github.com/YOUR_USERNAME/YOUR_REPO) "
+        "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
         "if you find Alpchart useful!",
     )
 
@@ -287,7 +330,7 @@ def page_rainbow():
                 ma_200 = st.checkbox("200-day SMA", True)
                 ma_600 = st.checkbox("600-day SMA", True)
 
-    run = st.button("🚀 Generate", type="primary", use_container_width=True, key="run_rr")
+    run = st.button("Generate", type="primary", use_container_width=True, key="run_rr")
 
     if not run:
         return
@@ -384,7 +427,7 @@ def page_zscore():
             y_min = None if ym == 0.0 else float(ym)
             y_max = None if yx == 0.0 else float(yx)
 
-    run = st.button("🚀 Run Analysis", type="primary", use_container_width=True, key="run_zs")
+    run = st.button("Run Analysis", type="primary", use_container_width=True, key="run_zs")
 
     if not run:
         return
@@ -504,7 +547,7 @@ def page_pe():
                 st.caption("Free sources: [macrotrends.net](https://www.macrotrends.net) · "
                            "[simfin.com](https://simfin.com)")
 
-    run = st.button("🚀 Run Analysis", type="primary", use_container_width=True, key="run_pe")
+    run = st.button("Run Analysis", type="primary", use_container_width=True, key="run_pe")
 
     if not run:
         return
