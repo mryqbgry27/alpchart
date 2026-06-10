@@ -1,10 +1,11 @@
 [theme]
-base            = "dark"
-backgroundColor = "#0d1117"
+base                     = "dark"
+primaryColor             = "#1a56db"
+backgroundColor          = "#0d1117"
 secondaryBackgroundColor = "#161b22"
-textColor       = "#e6edf3"
-primaryColor    = "#58a6ff"
+textColor                = "#e6edf3"
+font                     = "sans serif"
 
 [server]
-headless        = true
-enableCORS      = false
+headless   = true
+enableCORS = false
