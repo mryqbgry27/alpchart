@@ -31,11 +31,9 @@ MAX_PAIRS   = 12
 st.markdown("""
 <style>
   /* ── Global font — scoped to text elements only, NOT icons/SVG ──── */
-  body, p, div, span, h1, h2, h3, h4, h5, h6,
-  button, input, select, textarea, label, td, th, li, a,
-  .stMarkdown, .stTextInput, .stSelectbox, .stRadio,
-  [data-testid], [class*="stWidget"] {
-      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  .material-icons, .material-icons-outlined, [class*="material-icon"] {
+      font-family: "Material Icons", "Material Icons Outlined" !important;
   }
 
   /* ── Backgrounds ─────────────────────────────────────────────────── */
@@ -75,20 +73,22 @@ st.markdown("""
       font-size:0.68rem !important;
   }
 
-  /* ── Blue primary buttons ─────────────────────────────────────────── */
+  /* ── Navy buttons ─────────────────────────────────────────────────── */
+  button[kind="primary"],
+  [data-testid="stButton"] > button,
   div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
-      background-color:#1a56db !important;
-      border-color:#1a56db !important;
+      background-color:#1a3a6b !important; border-color:#1a3a6b !important;
       color:#ffffff !important;
   }
+  button[kind="primary"]:hover,
+  [data-testid="stButton"] > button:hover,
   div[data-testid="stButton"] > button[data-testid="baseButton-primary"]:hover {
-      background-color:#1e40af !important;
-      border-color:#1e40af !important;
+      background-color:#0d2557 !important; border-color:#0d2557 !important;
   }
 
   /* ── Blue radio (period buttons) & checkbox accent ─────────────────── */
-  input[type="radio"] { accent-color:#1a56db !important; }
-  input[type="checkbox"] { accent-color:#1a56db !important; }
+  input[type="radio"] { accent-color:#1a3a6b !important; }
+  input[type="checkbox"] { accent-color:#1a3a6b !important; }
 
   /* ── Misc ─────────────────────────────────────────────────────────── */
   details { border:1px solid #30363d !important; border-radius:8px; }
@@ -129,6 +129,12 @@ with st.sidebar:
 """)
     st.divider()
 
+    st.divider()
+    st.markdown(
+        "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
+        "if you find Alpchart useful!",
+    )
+    st.divider()
     st.markdown("""
 <small style="color:#8b949e">
 ⚠️ <b>Disclaimer</b><br>
@@ -140,7 +146,13 @@ investment decisions made using this tool.
 """, unsafe_allow_html=True)
 
     st.divider()
-    with st.expander("📊 Common index tickers"):
+    with st.expander("Common index tickers"):
+        st.markdown(
+            "<style>section[data-testid='stSidebar'] table,"
+            "section[data-testid='stSidebar'] td,"
+            "section[data-testid='stSidebar'] th { "
+            "font-size:0.72rem !important; line-height:1.3 }</style>",
+            unsafe_allow_html=True)
         st.markdown("""
 | Index | Ticker |
 |:------|:-------|
@@ -159,11 +171,6 @@ investment decisions made using this tool.
 | KOSPI | `^KS11` |
         """)
         st.caption("⚠️ No P/E data available for indices")
-    st.divider()
-    st.markdown(
-        "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
-        "if you find Alpchart useful!",
-    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -545,12 +552,13 @@ def page_pe():
         "P/E is currency-neutral — exchange rates do not affect the values."
     )
 
-    st.info(
-        "📌 **EPS note:** Yahoo Finance provides ~4–5 years of quarterly EPS. "
-        "Where only annual data is available, quarterly EPS is estimated as "
-        "annual EPS ÷ 4, creating a **synthetic TTM**. "
-        "This may differ slightly from officially published trailing P/E figures.",
-    )
+    st.markdown(
+        "<div style='font-size:0.79rem;color:#8b949e;background:#161b22;"
+        "border:1px solid #30363d;border-radius:8px;padding:8px 12px;margin-bottom:8px'>"
+        "📌 <b>EPS note:</b> Yahoo Finance provides ~4–5 years of quarterly EPS. "
+        "Where only annual data is available, quarterly EPS ÷ 4 is used as a "
+        "synthetic TTM — may differ slightly from official P/E figures.</div>",
+        unsafe_allow_html=True)
 
     YF_HELP = ("Yahoo Finance format e.g. AAPL · BTC-USD · SAP.DE. "
                "Add multiple tickers with commas for matrix mode (e.g. AAPL, MSFT).")
