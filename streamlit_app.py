@@ -30,16 +30,19 @@ MAX_PAIRS   = 12
 
 st.markdown("""
 <style>
-  /* ── Global font ──────────────────────────────────────────────────── */
-  html, body, [class*="css"], * {
-      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  /* ── Global font — scoped to text elements only, NOT icons/SVG ──── */
+  body, p, div, span, h1, h2, h3, h4, h5, h6,
+  button, input, select, textarea, label, td, th, li, a,
+  .stMarkdown, .stTextInput, .stSelectbox, .stRadio,
+  [data-testid], [class*="stWidget"] {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
 
   /* ── Backgrounds ─────────────────────────────────────────────────── */
   .stApp { background:#0d1117; color:#e6edf3; }
   .block-container { padding-top:3.5rem !important; }
 
-  /* ── Sidebar — uniform small font throughout ─────────────────────── */
+  /* ── Sidebar — uniform small font ───────────────────────────────── */
   section[data-testid="stSidebar"] { background:#161b22; }
   section[data-testid="stSidebar"] h2 {
       font-size:1.05rem !important; font-weight:600; margin-bottom:2px;
@@ -55,43 +58,48 @@ st.markdown("""
       font-size:0.79rem !important; line-height:1.4;
   }
   section[data-testid="stSidebar"] strong { font-size:0.79rem !important; }
+  section[data-testid="stSidebar"] code {
+      font-size:0.79rem !important; background:rgba(255,255,255,0.06);
+      padding:1px 4px; border-radius:3px;
+  }
 
-  /* ── Metric cards ────────────────────────────────────────────────── */
+  /* ── Metric cards ─────────────────────────────────────────────────── */
   div[data-testid="metric-container"] {
       background:#161b22; border:1px solid #30363d;
-      border-radius:8px; padding:8px 12px;
+      border-radius:8px; padding:5px 10px;
   }
-  div[data-testid="metric-container"] [data-testid="stMetricValue"] { font-size:0.95rem !important; }
-  div[data-testid="metric-container"] [data-testid="stMetricLabel"] { font-size:0.7rem !important; }
+  div[data-testid="metric-container"] [data-testid="stMetricValue"] {
+      font-size:0.82rem !important;
+  }
+  div[data-testid="metric-container"] [data-testid="stMetricLabel"] {
+      font-size:0.68rem !important;
+  }
 
-  /* ── Green primary buttons ───────────────────────────────────────── */
-  button[kind="primary"],
+  /* ── Blue primary buttons ─────────────────────────────────────────── */
   div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
-      background-color:#2ea043 !important;
-      border-color:#2ea043 !important;
+      background-color:#1a56db !important;
+      border-color:#1a56db !important;
       color:#ffffff !important;
   }
   div[data-testid="stButton"] > button[data-testid="baseButton-primary"]:hover {
-      background-color:#3fb950 !important;
-      border-color:#3fb950 !important;
-  }
-  div[data-testid="stButton"] > button[data-testid="baseButton-primary"]:active {
-      background-color:#238636 !important;
-      border-color:#238636 !important;
+      background-color:#1e40af !important;
+      border-color:#1e40af !important;
   }
 
-  /* ── Green radio / checkbox / select accent ──────────────────────── */
-  input[type="radio"], input[type="checkbox"] {
-      accent-color:#2ea043 !important;
-  }
+  /* ── Blue radio (period buttons) & checkbox accent ─────────────────── */
+  input[type="radio"] { accent-color:#1a56db !important; }
+  input[type="checkbox"] { accent-color:#1a56db !important; }
 
-  /* ── Misc ────────────────────────────────────────────────────────── */
+  /* ── Misc ─────────────────────────────────────────────────────────── */
   details { border:1px solid #30363d !important; border-radius:8px; }
   div[data-testid="stDownloadButton"] button {
       background:#161b22; border:1px solid #30363d; color:#79c0ff;
   }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ─────
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -114,11 +122,10 @@ with st.sidebar:
     st.divider()
 
     st.markdown("""
-**Ticker format**
-Symbols must match [Yahoo Finance](https://finance.yahoo.com) format:
+**Ticker format** must match [Yahoo Finance](https://finance.yahoo.com) format:
 `AAPL` · `SAP.DE` · `BTC-USD` · `^GSPC`
 
-**Data source:** Yahoo Finance via `yfinance`
+**Data source:** Yahoo Finance via yfinance
 """)
     st.divider()
 
@@ -132,6 +139,26 @@ investment decisions made using this tool.
 </small>
 """, unsafe_allow_html=True)
 
+    st.divider()
+    with st.expander("📊 Common index tickers"):
+        st.markdown("""
+| Index | Ticker |
+|:------|:-------|
+| S&P 500 | `^GSPC` |
+| Dow Jones | `^DJI` |
+| Nasdaq | `^IXIC` |
+| Russell 2000 | `^RUT` |
+| FTSE 100 | `^FTSE` |
+| CAC 40 | `^FCHI` |
+| DAX | `^GDAXI` |
+| Euronext 100 | `^N100` |
+| SSE Composite | `000001.SS` |
+| Nikkei 225 | `^N225` |
+| Hang Seng | `^HSI` |
+| ASX 200 | `^AXJO` |
+| KOSPI | `^KS11` |
+        """)
+        st.caption("⚠️ No P/E data available for indices")
     st.divider()
     st.markdown(
         "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
@@ -368,11 +395,16 @@ def page_rainbow():
                     )
 
                 sym = "$" if price_ccy == "USD" else f"{price_ccy} "
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Latest price",    f"{sym}{prices[-1]:,.2f}")
-                m2.metric("Growth exponent", f"{a:.4f}")
-                m3.metric("Residual σ",      f"{sigma:.4f}")
-                m4.metric("Data points",     f"{len(prices):,}")
+                st.markdown(
+                    f"<div style='display:flex;flex-wrap:wrap;gap:4px 18px;"
+                    f"font-size:0.74rem;background:#161b22;border:1px solid #30363d;"
+                    f"border-radius:8px;padding:6px 12px;margin-bottom:4px'>"
+                    f"<span><b>Latest price</b>: {sym}{prices[-1]:,.2f}</span>"
+                    f"<span><b>Growth exponent</b>: {a:.4f}</span>"
+                    f"<span><b>Residual \u03c3</b>: {sigma:.4f}</span>"
+                    f"<span style='color:#8b949e'><b>Data points</b>: {len(prices):,}</span>"
+                    f"</div>", unsafe_allow_html=True
+                )
 
                 html = _chart_html(fig)
                 _show_chart(html, height=740)
@@ -474,11 +506,19 @@ def page_zscore():
                 df = zs.compute_spread(z_a, z_b)
 
                 spread_now = df["spread"].iloc[-1]
-                cols = st.columns(1 + len(zs.SMA_WINDOWS))
-                cols[0].metric("Z-Spread now", f"{spread_now:+.3f}σ")
-                for i, (w, lbl, _) in enumerate(zs.SMA_WINDOWS, 1):
-                    v = df[f"sma_{w}"].dropna().iloc[-1] if df[f"sma_{w}"].notna().any() else float("nan")
-                    cols[i].metric(lbl.split("(")[0].strip(), f"{v:+.3f}σ")
+                sma_parts = "".join(
+                    f"<span><b>{lbl.split('(')[0].strip()}</b>: "
+                    f"{df[f'sma_{w}'].dropna().iloc[-1]:+.3f}\u03c3</span>"
+                    for w, lbl, _ in zs.SMA_WINDOWS
+                    if df[f"sma_{w}"].notna().any()
+                )
+                st.markdown(
+                    f"<div style='display:flex;flex-wrap:wrap;gap:4px 18px;"
+                    f"font-size:0.74rem;background:#161b22;border:1px solid #30363d;"
+                    f"border-radius:8px;padding:6px 12px;margin-bottom:4px'>"
+                    f"<span><b>Z-Spread now</b>: {spread_now:+.3f}\u03c3</span>"
+                    f"{sma_parts}</div>", unsafe_allow_html=True
+                )
 
                 fig  = zs.build_chart(df, ticker_a, ticker_b,
                                       (a_a, b_a, sig_a), (a_b, b_b, sig_b))
