@@ -128,8 +128,6 @@ with st.sidebar:
 **Data source:** Yahoo Finance via yfinance
 """)
     st.divider()
-
-    st.divider()
     st.markdown(
         "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
         "if you find Alpchart useful!",
