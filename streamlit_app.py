@@ -128,6 +128,8 @@ with st.sidebar:
 **Data source:** Yahoo Finance via yfinance
 """)
     st.divider()
+
+    st.divider()
     st.markdown(
         "⭐ [Star on GitHub](https://github.com/mryqbgry27/alpchart) "
         "if you find Alpchart useful!",
@@ -326,7 +328,7 @@ def _native_ccy(ticker: str, module) -> str:
 # ══ PAGE 1 — RAINBOW ═════════════════════════════════════════════════════════
 # ─────────────────────────────────────────────────────────────────────────────
 def page_rainbow():
-    rr, _, _ = _load_modules()
+    rr, zs, _ = _load_modules()
 
     _subtitle(
         "Fits a <b>power-law model</b> (ln P = a·ln t + b) to each ticker's full price history, "
@@ -411,7 +413,7 @@ def page_rainbow():
                     f"</div>", unsafe_allow_html=True
                 )
 
-                html = _chart_html(fig)
+                html = _chart_html(fig, inject_fn=zs._inject_crosshair_js)
                 _show_chart(html, height=740)
                 _dl_btn(html, f"{ticker}_rainbow.html")
                 time.sleep(0.3)
