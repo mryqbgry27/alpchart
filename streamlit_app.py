@@ -127,7 +127,6 @@ with st.sidebar:
 
 **Data source:** Yahoo Finance via yfinance
 """)
-    st.divider()
 
     st.divider()
     st.markdown(
